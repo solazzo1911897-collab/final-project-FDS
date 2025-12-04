@@ -45,7 +45,11 @@ class G2NetDataset(Dataset):
         label = torch.tensor(self.targets[idx], dtype=torch.float32)
         return image, label
 
-def create_dataloaders(data_dir, labels_file, batch_size=32, split_ratio=0.8):
+def prepare_data_lists(data_dir, labels_file):
+    """
+    NEW FUNCTION: Loads all file paths and targets once.
+    This was moved from the old create_dataloaders.
+    """
     print(f"Scanning {data_dir} for .npy files...")
     df = pd.read_csv(labels_file)
     
@@ -64,20 +68,29 @@ def create_dataloaders(data_dir, labels_file, batch_size=32, split_ratio=0.8):
             file_paths.append(file_path_map[f_id])
             valid_indices.append(idx)
             
-    targets = df.loc[valid_indices, 'target'].values
+    # targets is a NumPy array (crucial for StratifiedKFold)
+    targets = df.loc[valid_indices, 'target'].values 
     print(f"Matched {len(file_paths)} samples.")
     
     if len(file_paths) == 0: raise FileNotFoundError("No files found.")
+    
+    return file_paths, targets
 
-    dataset_size = len(file_paths)
-    indices = list(range(dataset_size))
-    split = int(np.floor(split_ratio * dataset_size))
-    train_idx, val_idx = indices[:split], indices[split:]
+
+def create_dataloaders(file_paths, targets, train_indices, val_indices, batch_size=32):
+    """
+    MODIFIED FUNCTION: Accepts pre-split indices from main.py's K-Fold loop.
+    """
     
-    train_dataset = G2NetDataset([file_paths[i] for i in train_idx], [targets[i] for i in train_idx], training=True)
-    val_dataset = G2NetDataset([file_paths[i] for i in val_idx], [targets[i] for i in val_idx], training=False)
+    # Select the paths and targets based on the indices for the current fold
+    train_paths = [file_paths[i] for i in train_indices]
+    train_targets = [targets[i] for i in train_indices]
+    val_paths = [file_paths[i] for i in val_indices]
+    val_targets = [targets[i] for i in val_indices]
     
-    # DataLoader Standard (Without explicit num_workers or pin_memory)
+    train_dataset = G2NetDataset(train_paths, train_targets, training=True)
+    val_dataset = G2NetDataset(val_paths, val_targets, training=False)
+    
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
