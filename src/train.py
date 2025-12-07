@@ -20,7 +20,7 @@ class Trainer:
         self.criterion = nn.BCEWithLogitsLoss()
         
         # Optimizer: AdamW is standard for EfficientNet
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=1e-2)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=5e-2)
         
         # Metrics & History
         self.best_score = 0.0
@@ -100,7 +100,7 @@ class Trainer:
         
         # Scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='max', factor=0.5, patience=2
+            self.optimizer, mode='max', factor=0.5, patience=3
         )
         
         total_start = time.time() # Start TOTAL timer
