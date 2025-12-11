@@ -20,7 +20,7 @@ class Trainer:
         self.criterion = nn.BCEWithLogitsLoss()
         
         # Optimizer: AdamW is standard for EfficientNet
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=5e-2)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=1e-2)
         
         # Metrics & History
         self.best_score = 0.0
@@ -94,6 +94,22 @@ class Trainer:
             auc_score = 0.5
             
         return avg_loss, auc_score
+    # Raw predictions
+    def get_val_predictions(self):
+        self.model.eval()
+        all_preds = []
+        
+        # Validation loader
+        with torch.no_grad():
+            for images, _ in self.val_loader: 
+                images = images.to(self.device)
+                
+                outputs = self.model(images).squeeze()
+                # Move to CPU(to implement numpy)
+                preds = torch.sigmoid(outputs).cpu().numpy()
+                all_preds.extend(preds)
+                
+        return np.array(all_preds)
 
     def fit(self, epochs, save_path="models/best_model.pth"):
         print(f"Starting training on {self.device}...")

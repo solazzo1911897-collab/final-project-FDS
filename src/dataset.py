@@ -68,7 +68,6 @@ def prepare_data_lists(data_dir, labels_file):
             file_paths.append(file_path_map[f_id])
             valid_indices.append(idx)
             
-    # targets is a NumPy array (crucial for StratifiedKFold)
     targets = df.loc[valid_indices, 'target'].values 
     print(f"Matched {len(file_paths)} samples.")
     
@@ -82,7 +81,6 @@ def create_dataloaders(file_paths, targets, train_indices, val_indices, batch_si
     MODIFIED FUNCTION: Accepts pre-split indices from main.py's K-Fold loop.
     """
     
-    # Select the paths and targets based on the indices for the current fold
     train_paths = [file_paths[i] for i in train_indices]
     train_targets = [targets[i] for i in train_indices]
     val_paths = [file_paths[i] for i in val_indices]

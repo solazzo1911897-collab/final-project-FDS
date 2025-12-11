@@ -10,8 +10,6 @@ class GWClassifier(nn.Module):
     def __init__(self, model_name='efficientnet_b0', pretrained=True):
         super().__init__()
         
-        # Load EfficientNet-B0 (Pretrained on ImageNet)
-        # Standard input: 3 Channels (RGB), which maps to our 3 Sensors
         self.backbone = timm.create_model(
             model_name, 
             pretrained=pretrained, 
@@ -21,7 +19,6 @@ class GWClassifier(nn.Module):
         
         num_features = self.backbone.num_features
         
-        # Head with moderate dropout
         self.global_pool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Sequential(
             nn.Flatten(),
