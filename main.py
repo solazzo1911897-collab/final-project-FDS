@@ -30,7 +30,7 @@ EPOCHS = 12
 LEARNING_RATE = 5e-5 
 SEED = 42 
 K_FOLDS = 5        
-MODEL_BACKBONE = 'efficientnet_b0'
+MODEL_BACKBONE = 'efficientnet_b5'
 def set_seed(seed):
     """
     Locks all sources of randomness to ensure reproducible results.
