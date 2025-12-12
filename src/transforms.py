@@ -17,7 +17,6 @@ class GWTransform(nn.Module):
         
         self.time_masking = T.TimeMasking(time_mask_param=10) 
         self.freq_masking = T.FrequencyMasking(freq_mask_param=5)
-        self.random_erasing = T.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0)
 
     def forward(self, waveform, training=False):
         if waveform.dim() == 1:
@@ -29,6 +28,5 @@ class GWTransform(nn.Module):
         if training:
             spec = self.time_masking(spec)
             spec = self.freq_masking(spec)
-            spec = self.random_erasing(spec)
         
         return spec
