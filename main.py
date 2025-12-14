@@ -25,7 +25,7 @@ DATA_DIR = "data/raw"
 LABELS_FILE = os.path.join(DATA_DIR, "subset_labels.csv")
 MODEL_SAVE_PATH = "models/best_model.pth"
 
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 EPOCHS = 12   
 LEARNING_RATE = 5e-5 
 SEED = 42 
