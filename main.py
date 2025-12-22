@@ -20,7 +20,7 @@ from src.model import GWClassifier
 from src.train import Trainer
 
 # --- CONFIGURATION ---
-DATA_DIR = "data/raw"
+DATA_DIR = "input"
 LABELS_FILE = os.path.join(DATA_DIR, "subset_labels.csv")
 MODEL_SAVE_PATH = "models/best_model.pth"
 
