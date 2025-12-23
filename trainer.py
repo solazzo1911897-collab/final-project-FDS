@@ -27,9 +27,8 @@ import torch.nn as nn
 
 from utils import get_device, seed_everything, get_gpu_memory
 # from .tb_logger import DummyTensorBoardLogger
-from utils import (
-    TorchLogger, DummyLogger, SaveSnapshot, TrainHook
-)
+from utils import SaveSnapshot, TrainHook
+from logger import TorchLogger, DummyLogger
 # from . import distributed as comm
 # from .clip_grad import dispatch_clip_grad
 
