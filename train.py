@@ -19,8 +19,8 @@ from logger import TorchLogger
 from utils import get_time, seed_everything, fit_state_dict, print_config
 
 from configs import *
-from transforms import Compose, FlipWave
-from training_extras import make_tta_dataloader
+# from transforms import Compose, FlipWave
+# from training_extras import make_tta_dataloader
 
 
 if __name__ == "__main__":
@@ -35,8 +35,8 @@ if __name__ == "__main__":
                         help="train only specified fold")
     parser.add_argument("--inference", action='store_true',
                         help="inference")
-    parser.add_argument("--tta", action='store_true', 
-                        help="test time augmentation ")
+    # parser.add_argument("--tta", action='store_true', 
+    #                     help="test time augmentation ")
     parser.add_argument("--gpu", nargs="+", default=[])
     parser.add_argument("--debug", action='store_true')
     parser.add_argument("--silent", action='store_true')
@@ -279,31 +279,31 @@ if __name__ == "__main__":
         trainer = TorchTrainer(model, serial=f'fold{fold}', device=opt.gpu)
         trainer.register(hook=cfg.hook, callbacks=cfg.callbacks)  # 注册钩子与回调（早停/保存等）
 
-        if opt.tta: # flip wave TTA：对 test/valid 各跑两次，取平均
-            tta_transform = Compose(
-                cfg.transforms['test'].transforms + [FlipWave(always_apply=True)])
-            LOGGER(f'[{fold}] pred0 {test_loader.dataset.transforms}')
-            prediction0 = trainer.predict(test_loader, progress_bar=opt.progress_bar)
-            test_loader = make_tta_dataloader(test_loader, cfg.dataset, dict(
-                paths=test['path'].values, transforms=tta_transform, 
-                cache=test_cache, is_test=True, **cfg.dataset_params
-            ))
-            LOGGER(f'[{fold}] pred1 {test_loader.dataset.transforms}')
-            prediction1 = trainer.predict(test_loader, progress_bar=opt.progress_bar)
-            prediction_fold = (prediction0 + prediction1) / 2
+        # if opt.tta: # flip wave TTA：对 test/valid 各跑两次，取平均
+        #     tta_transform = Compose(
+        #         cfg.transforms['test'].transforms + [FlipWave(always_apply=True)])
+        #     LOGGER(f'[{fold}] pred0 {test_loader.dataset.transforms}')
+        #     prediction0 = trainer.predict(test_loader, progress_bar=opt.progress_bar)
+        #     test_loader = make_tta_dataloader(test_loader, cfg.dataset, dict(
+        #         paths=test['path'].values, transforms=tta_transform, 
+        #         cache=test_cache, is_test=True, **cfg.dataset_params
+        #     ))
+        #     LOGGER(f'[{fold}] pred1 {test_loader.dataset.transforms}')
+        #     prediction1 = trainer.predict(test_loader, progress_bar=opt.progress_bar)
+        #     prediction_fold = (prediction0 + prediction1) / 2
 
-            LOGGER(f'[{fold}] oof0 {valid_loader.dataset.transforms}')
-            outoffold0 = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
-            valid_loader = make_tta_dataloader(valid_loader, cfg.dataset, dict(
-                paths=valid_fold['path'].values, targets=valid_fold['target'].values,
-                cache=train_cache, transforms=tta_transform, is_test=True,
-                **cfg.dataset_params))
-            LOGGER(f'[{fold}] oof1 {valid_loader.dataset.transforms}')
-            outoffold1 = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
-            outoffold = (outoffold0 + outoffold1) / 2
-        else:
-            prediction_fold = trainer.predict(test_loader, progress_bar=opt.progress_bar)
-            outoffold = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
+        #     LOGGER(f'[{fold}] oof0 {valid_loader.dataset.transforms}')
+        #     outoffold0 = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
+        #     valid_loader = make_tta_dataloader(valid_loader, cfg.dataset, dict(
+        #         paths=valid_fold['path'].values, targets=valid_fold['target'].values,
+        #         cache=train_cache, transforms=tta_transform, is_test=True,
+        #         **cfg.dataset_params))
+        #     LOGGER(f'[{fold}] oof1 {valid_loader.dataset.transforms}')
+        #     outoffold1 = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
+        #     outoffold = (outoffold0 + outoffold1) / 2
+        # else:
+        prediction_fold = trainer.predict(test_loader, progress_bar=opt.progress_bar)
+        outoffold = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
 
         predictions[fold] = prediction_fold        # test 预测：按折存放，后续可对折/模型求平均
         outoffolds[valid_idx] = outoffold          # OOF (out-of-fold) 预测：对每折验证集的预测，写回原始索引；用于计算全体验证集的整体指标（如全数据 AUC）
@@ -312,12 +312,12 @@ if __name__ == "__main__":
         torch.cuda.empty_cache()
 
     if opt.limit_fold < 0: # 默认-1
-        if opt.tta:
-            np.save(export_dir/'outoffolds_tta', outoffolds)
-            np.save(export_dir/'predictions_tta', predictions)
-        else:
-            np.save(export_dir/'outoffolds', outoffolds)
-            np.save(export_dir/'predictions', predictions)
+        # if opt.tta:
+        #     np.save(export_dir/'outoffolds_tta', outoffolds)
+        #     np.save(export_dir/'predictions_tta', predictions)
+        # else:
+        np.save(export_dir/'outoffolds', outoffolds)
+        np.save(export_dir/'predictions', predictions)
 
     LOGGER(f'scores: {scores}')  # 各折最佳分数
     LOGGER(f'mean +- std: {np.mean(scores):.5f} +- {np.std(scores):.5f}')
