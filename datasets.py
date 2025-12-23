@@ -117,7 +117,7 @@ class G2NetDataset(D.Dataset):
         self.transforms2 = transforms2 # additional transforms
         self.cache = cache
         #
-        print('cache', cache)
+        # print('cache', cache)
         
         self.test_cache = None
         self.mixup = mixup
