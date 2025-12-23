@@ -19,20 +19,19 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-import torch.multiprocessing as mp
-import torch.distributed as dist
-from torch.nn.parallel import DataParallel, DistributedDataParallel
-from torch.utils.data.distributed import DistributedSampler
-from torch.nn import SyncBatchNorm
+# import torch.multiprocessing as mp
+# import torch.distributed as dist
+# from torch.nn.parallel import DataParallel, DistributedDataParallel
+# from torch.utils.data.distributed import DistributedSampler
+# from torch.nn import SyncBatchNorm
 
-from .utils import get_device, seed_everything, get_gpu_memory
-from .tb_logger import DummyTensorBoardLogger
-from .callbacks import (
-    TorchLogger, DummyLogger, SaveSnapshot
+from utils import get_device, seed_everything, get_gpu_memory
+# from .tb_logger import DummyTensorBoardLogger
+from utils import (
+    TorchLogger, DummyLogger, SaveSnapshot, TrainHook
 )
-from .hooks import TrainHook
-from . import distributed as comm
-from .clip_grad import dispatch_clip_grad
+# from . import distributed as comm
+# from .clip_grad import dispatch_clip_grad
 
 try:
     from torch.cuda import amp
@@ -40,14 +39,14 @@ try:
 except ModuleNotFoundError:
     AMP = False
 
-try:
-    import torch_xla.core.xla_model as xm
-    import torch_xla.distributed.parallel_loader as pl
-    import torch_xla.utils.serialization as xser
-    import torch_xla.distributed.xla_multiprocessing as xmp
-    XLA = True
-except ModuleNotFoundError:
-    XLA = False
+# try:
+#     import torch_xla.core.xla_model as xm
+#     import torch_xla.distributed.parallel_loader as pl
+#     import torch_xla.utils.serialization as xser
+#     import torch_xla.distributed.xla_multiprocessing as xmp
+#     XLA = True
+# except ModuleNotFoundError:
+#     XLA = False
 
 
 class TorchTrainer:
@@ -67,7 +66,8 @@ class TorchTrainer:
 
         self.serial = serial
         self.device, self.device_ids = get_device(device)
-        self.xla = self.device.type == 'xla'
+        # self.xla = self.device.type == 'xla'
+        self.xla = False
         self.world_size = len(self.device_ids)
         self.model = model
         self.rank = 0
@@ -76,10 +76,10 @@ class TorchTrainer:
 
         ### Implicit attributes
         # DDP
-        self.ddp_sync_batch_norm = True
-        self.ddp_average_loss = True
-        self.ddp_sync_last = False # deprecated
-        self.ddp_workers = -1
+        # self.ddp_sync_batch_norm = True
+        # self.ddp_average_loss = True
+        # self.ddp_sync_last = False # deprecated
+        # self.ddp_workers = -1
         # MISC
         self.debug = False
 
@@ -137,35 +137,35 @@ class TorchTrainer:
         # - parallel='dp'：单进程多卡 DataParallel，自动切分 batch。
         # - parallel='ddp'：多进程多卡 DistributedDataParallel，需 per-rank 设备绑定。
         # - None：单卡/CPU 直连。
-        if self.xla:  # DDP on xla
-            self.model.to(self.device)
-            if self.rank == 0:
-                self.logger(f'Model on {self.device}')
+        # if self.xla:  # DDP on xla
+        #     self.model.to(self.device)
+        #     if self.rank == 0:
+        #         self.logger(f'Model on {self.device}')
 
-        elif self.parallel == 'dp': # DP on cuda
-            # 中文：DataParallel 使用主进程控制多卡，梯度在主卡归并
-            self.model = DataParallel(
-                self.model, device_ids=self.device_ids).to(self.device)
-            if hasattr(self, 'criterion'):
-                self.criterion = self.criterion.to(self.device)
-            self.logger(f'DataParallel on devices {self.device_ids}')
+        # elif self.parallel == 'dp': # DP on cuda
+        #     # 中文：DataParallel 使用主进程控制多卡，梯度在主卡归并
+        #     self.model = DataParallel(
+        #         self.model, device_ids=self.device_ids).to(self.device)
+        #     if hasattr(self, 'criterion'):
+        #         self.criterion = self.criterion.to(self.device)
+        #     self.logger(f'DataParallel on devices {self.device_ids}')
 
-        elif self.parallel == 'ddp': # DDP on cuda
-            # 中文：DDP 需确保每个进程只用一张卡；可选 SyncBatchNorm 做跨卡同步
-            if self.ddp_sync_batch_norm:
-                self.model = SyncBatchNorm.convert_sync_batchnorm(self.model)
-            self.model = DistributedDataParallel(
-                self.model.to(self.rank), device_ids=[self.rank],
-                broadcast_buffers=False,
-                find_unused_parameters=True
-            )
-            if hasattr(self, 'criterion'):
-                self.criterion = self.criterion.to(self.rank)
-            if self.rank == 0:
-                self.logger(
-                    f'DistributedDataParallel on devices {self.device_ids}')
+        # elif self.parallel == 'ddp': # DDP on cuda
+        #     # 中文：DDP 需确保每个进程只用一张卡；可选 SyncBatchNorm 做跨卡同步
+        #     if self.ddp_sync_batch_norm:
+        #         self.model = SyncBatchNorm.convert_sync_batchnorm(self.model)
+        #     self.model = DistributedDataParallel(
+        #         self.model.to(self.rank), device_ids=[self.rank],
+        #         broadcast_buffers=False,
+        #         find_unused_parameters=True
+        #     )
+        #     if hasattr(self, 'criterion'):
+        #         self.criterion = self.criterion.to(self.rank)
+        #     if self.rank == 0:
+        #         self.logger(
+        #             f'DistributedDataParallel on devices {self.device_ids}')
 
-        elif self.parallel is not None:
+        if self.parallel is not None and self.parallel != 'dp':
             raise ValueError(f'Unknown type of parallel {self.parallel}')
 
         else:  # Single device
@@ -177,31 +177,31 @@ class TorchTrainer:
         
         self._model_ready = True
 
-    def _configure_loader_ddp(self, loader, shuffle=True):
-        if loader is None:
-            return None
-        # 中文：重建 DataLoader，使用 DistributedSampler 保证各进程数据切分一致
-        skip_keys = ['sampler', 'batch_sampler', 'dataset_kind']
-        dl_args = {
-            k: v for k, v in loader.__dict__.items()
-            if not k.startswith('_') and k not in skip_keys
-        }
-        sampler = DistributedSampler(
-            loader.dataset, num_replicas=self.world_size, rank=self.rank, shuffle=shuffle)
-        dl_args['sampler'] = sampler
-        if self.ddp_workers == -1:
-            dl_args['num_workers'] = int(
-                dl_args['num_workers'] / self.world_size)
-        else:
-            dl_args['num_workers'] = self.ddp_workers
-        if dl_args['batch_size'] % self.world_size != 0:
-            raise ValueError(
-                f'batch size must be a multiple of world size({self.world_size}).')
-        dl_args['batch_size'] = int(dl_args['batch_size'] / self.world_size)
-        if self.xla:
-            return pl.ParallelLoader(type(loader)(**dl_args), [self.device])
-        else:
-            return type(loader)(**dl_args)
+    # def _configure_loader_ddp(self, loader, shuffle=True):
+    #     if loader is None:
+    #         return None
+    #     # 中文：重建 DataLoader，使用 DistributedSampler 保证各进程数据切分一致
+    #     skip_keys = ['sampler', 'batch_sampler', 'dataset_kind']
+    #     dl_args = {
+    #         k: v for k, v in loader.__dict__.items()
+    #         if not k.startswith('_') and k not in skip_keys
+    #     }
+    #     sampler = DistributedSampler(
+    #         loader.dataset, num_replicas=self.world_size, rank=self.rank, shuffle=shuffle)
+    #     dl_args['sampler'] = sampler
+    #     if self.ddp_workers == -1:
+    #         dl_args['num_workers'] = int(
+    #             dl_args['num_workers'] / self.world_size)
+    #     else:
+    #         dl_args['num_workers'] = self.ddp_workers
+    #     if dl_args['batch_size'] % self.world_size != 0:
+    #         raise ValueError(
+    #             f'batch size must be a multiple of world size({self.world_size}).')
+    #     dl_args['batch_size'] = int(dl_args['batch_size'] / self.world_size)
+    #     if self.xla:
+    #         return pl.ParallelLoader(type(loader)(**dl_args), [self.device])
+    #     else:
+    #         return type(loader)(**dl_args)
 
     def _train_one_epoch(self, loader):
         """
@@ -315,8 +315,8 @@ class TorchTrainer:
                 scaler.scale(loss).backward()
                 
                 # 如果启用了梯度裁剪，对梯度进行裁剪（防止梯度爆炸）
-                if self.clip_grad is not None:
-                    dispatch_clip_grad(self.model.parameters(), self.max_grad_norm, mode=self.clip_grad)
+                # if self.clip_grad is not None:
+                    # dispatch_clip_grad(self.model.parameters(), self.max_grad_norm, mode=self.clip_grad)
                 
                 # 当达到梯度累积的步数时，执行参数更新
                 if (batch_i + 1) % self.grad_accumulations == 0:
@@ -360,20 +360,21 @@ class TorchTrainer:
                 loss.backward()
                 
                 # 如果启用了梯度裁剪，对梯度进行裁剪
-                if self.clip_grad is not None:
-                    dispatch_clip_grad(self.model.parameters(), self.max_grad_norm, mode=self.clip_grad)
+                # if self.clip_grad is not None:
+                    # dispatch_clip_grad(self.model.parameters(), self.max_grad_norm, mode=self.clip_grad)
                 
                 # 当达到梯度累积的步数时，执行参数更新
                 if (batch_i + 1) % self.grad_accumulations == 0:
-                    if self.xla:
-                        # ========== XLA设备（TPU）训练 ==========
-                        # XLA设备不支持SAM优化器
-                        if self.sam:
-                            raise RuntimeError('SAM optimizer on XLA device is not available.')
-                        else:
-                            # XLA设备使用特殊的优化步骤，barrier=True确保同步
-                            xm.optimizer_step(self.optimizer, barrier=True)
-                    else:
+                    # if self.xla:
+                    #     # ========== XLA设备（TPU）训练 ==========
+                    #     # XLA设备不支持SAM优化器
+                    #     if self.sam:
+                    #         raise RuntimeError('SAM optimizer on XLA device is not available.')
+                    #     else:
+                    #         # XLA设备使用特殊的优化步骤，barrier=True确保同步
+                    #         xm.optimizer_step(self.optimizer, barrier=True)
+                    # else:
+                    if True:  # 替换原来的 else
                         # ========== CUDA/CPU设备训练 ==========
                         if self.sam:
                             # FP32 + SAM优化器：两阶段优化
@@ -399,18 +400,18 @@ class TorchTrainer:
             
             # ========== 处理分布式训练中的损失值 ==========
             # 在DDP模式下，如果启用了损失平均，需要从所有进程收集损失并求平均
-            if self.parallel == 'ddp' and self.ddp_average_loss:
-                if self.xla:
-                    # XLA设备使用all_gather收集所有进程的损失
-                    loss_batch = xm.all_gather(
-                        loss.detach().clone().view(1)).mean().item()
-                else:
-                    # CUDA设备使用自定义的gather_tensor函数收集损失
-                    loss_batch = comm.gather_tensor(
-                        loss.detach().clone().view(1)).mean().item()
-            else:
-                # 单进程训练或使用主进程的损失值
-                loss_batch = loss.item()
+            # if self.parallel == 'ddp' and self.ddp_average_loss:
+            #     if self.xla:
+            #         # XLA设备使用all_gather收集所有进程的损失
+            #         loss_batch = xm.all_gather(
+            #             loss.detach().clone().view(1)).mean().item()
+            #     else:
+            #         # CUDA设备使用自定义的gather_tensor函数收集损失
+            #         loss_batch = comm.gather_tensor(
+            #             loss.detach().clone().view(1)).mean().item()
+            # else:
+            #     # 单进程训练或使用主进程的损失值
+            loss_batch = loss.item()
 
             # ========== 记录batch级别的日志 ==========
             # 获取当前学习率（支持多参数组的情况）
@@ -426,7 +427,7 @@ class TorchTrainer:
                 metric = self.epoch_storage['batch_metric'][-1]
                 logs.append(('batch_valid_mertric', metric))
             # 写入TensorBoard日志
-            self.tb_logger.list_of_scalars_summary(logs, batches_done)
+            # self.tb_logger.list_of_scalars_summary(logs, batches_done)
             # 保存损失值到epoch存储中
             self.epoch_storage['loss'].append(loss_batch)
 
@@ -456,24 +457,24 @@ class TorchTrainer:
 
         # ========== DDP模式：汇总所有进程的数据 ==========
         # 在分布式训练中，需要从所有进程收集数据，确保评估基于全局数据
-        if self.parallel == 'ddp':
-            # 遍历所有存储的键，收集各进程的张量/指标
-            for key, val in self.epoch_storage.items():
-                if len(val) > 0:
-                    if self.xla:
-                        # XLA设备使用all_gather收集所有进程的数据
-                        self.epoch_storage[key] = xm.all_gather(val)
-                    else:
-                        # CUDA设备使用自定义的gather_tensor函数收集数据
-                        self.epoch_storage[key] = comm.gather_tensor(val)
+        # if self.parallel == 'ddp':
+        #     # 遍历所有存储的键，收集各进程的张量/指标
+        #     for key, val in self.epoch_storage.items():
+        #         if len(val) > 0:
+        #             if self.xla:
+        #                 # XLA设备使用all_gather收集所有进程的数据
+        #                 self.epoch_storage[key] = xm.all_gather(val)
+        #             else:
+        #                 # CUDA设备使用自定义的gather_tensor函数收集数据
+        #                 self.epoch_storage[key] = comm.gather_tensor(val)
 
-            # 基于汇总后的全局数据评估整个epoch的指标
-            metric_total, monitor_metrics_total = self.evaluate_epoch(self)
+        #     # 基于汇总后的全局数据评估整个epoch的指标
+        #     metric_total, monitor_metrics_total = self.evaluate_epoch(self)
 
-        else:
-            # ========== 单进程模式：直接评估 ==========
-            # 单进程训练，直接使用当前进程的数据进行评估
-            metric_total, monitor_metrics_total = self.evaluate_epoch(self)
+        # else:
+        # ========== 单进程模式：直接评估 ==========
+        # 单进程训练，直接使用当前进程的数据进行评估
+        metric_total, monitor_metrics_total = self.evaluate_epoch(self)
 
         # ========== 处理评估指标 ==========
         # 如果没有评估指标（eval_metric未设置），使用损失值作为指标
@@ -487,7 +488,7 @@ class TorchTrainer:
             ('epoch_train_metric', metric_total),
         ]
         # 写入TensorBoard日志
-        self.tb_logger.list_of_scalars_summary(logs, self.global_epoch)
+        # self.tb_logger.list_of_scalars_summary(logs, self.global_epoch)
         
         # 返回epoch级别的指标
         return loss_total, metric_total, monitor_metrics_total
@@ -514,15 +515,15 @@ class TorchTrainer:
                 if torch.isnan(approx).any():
                     self.logger(f'{torch.isnan(approx).sum()} NaN detected in output tensor. ({batch_i}/{len(loader)})')
                 self.evaluate_batch(self, inputs, approx)
-                if self.parallel == 'ddp' and self.ddp_average_loss:
-                    if self.xla:
-                        loss_batch = xm.all_gather(
-                            loss.detach().clone().view(1)).mean().item()
-                    else:
-                        loss_batch = comm.gather_tensor(
-                            loss.detach().clone().view(1)).mean().item()
-                else:  # Use loss on device: 0
-                    loss_batch = loss.item()
+                # if self.parallel == 'ddp' and self.ddp_average_loss:
+                #     if self.xla:
+                #         loss_batch = xm.all_gather(
+                #             loss.detach().clone().view(1)).mean().item()
+                #     else:
+                #         loss_batch = comm.gather_tensor(
+                #             loss.detach().clone().view(1)).mean().item()
+                # else:  # Use loss on device: 0
+                loss_batch = loss.item()
 
                 logs = [
                     ('batch_valid_loss', loss_batch),
@@ -530,7 +531,7 @@ class TorchTrainer:
                 if len(self.epoch_storage['batch_metric']) > 0:
                     metric = self.epoch_storage['batch_metric'][-1]
                     logs.append(('batch_valid_mertric', metric))
-                self.tb_logger.list_of_scalars_summary(logs, batches_done)
+                # self.tb_logger.list_of_scalars_summary(logs, batches_done)
                 self.epoch_storage['loss'].append(loss_batch)
 
         for key, val in self.epoch_storage.items():
@@ -542,18 +543,18 @@ class TorchTrainer:
 
         loss_total = self.epoch_storage['loss'].mean().item()
 
-        if self.parallel == 'ddp':
-            for key, val in self.epoch_storage.items():
-                if len(val) > 0:
-                    if self.xla:
-                        self.epoch_storage[key] = xm.all_gather(val)
-                    else:
-                        self.epoch_storage[key] = comm.gather_tensor(val)
+        # if self.parallel == 'ddp':
+        #     for key, val in self.epoch_storage.items():
+        #         if len(val) > 0:
+        #             if self.xla:
+        #                 self.epoch_storage[key] = xm.all_gather(val)
+        #             else:
+        #                 self.epoch_storage[key] = comm.gather_tensor(val)
 
-            metric_total, monitor_metrics_total = self.evaluate_epoch(self)
+        #     metric_total, monitor_metrics_total = self.evaluate_epoch(self)
 
-        else:
-            metric_total, monitor_metrics_total = self.evaluate_epoch(self)
+        # else:
+        metric_total, monitor_metrics_total = self.evaluate_epoch(self)
 
         if metric_total is None:
             metric_total = loss_total
@@ -562,7 +563,7 @@ class TorchTrainer:
             ('epoch_valid_loss', loss_total),
             ('epoch_valid_metric', metric_total),
         ]
-        self.tb_logger.list_of_scalars_summary(logs, self.global_epoch)
+        # self.tb_logger.list_of_scalars_summary(logs, self.global_epoch)
         return loss_total, metric_total, monitor_metrics_total
 
     def _train(self, loader, loader_valid, num_epochs):
@@ -595,8 +596,8 @@ class TorchTrainer:
         # 中文：标准训练驱动，按 epoch 依次执行 callback -> train -> valid -> callback
         for epoch in range(num_epochs):
             # 中文：DDP 模式下，每个 epoch 需要设置 sampler 的 epoch，确保每个进程的数据打乱一致
-            if self.parallel == 'ddp' and not self.xla:
-                loader.sampler.set_epoch(epoch)
+            # if self.parallel == 'ddp' and not self.xla:
+            #     loader.sampler.set_epoch(epoch)
             
             # 中文：更新当前 epoch 编号到状态中
             self.state.update({'epoch': epoch})
@@ -619,8 +620,8 @@ class TorchTrainer:
                     None, None, None
             else:
                 # 中文：DDP 模式下，验证集的 sampler 也需要设置 epoch
-                if self.parallel == 'ddp' and not self.xla:
-                    loader_valid.sampler.set_epoch(epoch)
+                # if self.parallel == 'ddp' and not self.xla:
+                #     loader_valid.sampler.set_epoch(epoch)
                 loss_valid, metric_valid, monitor_metrics_valid = \
                     self._valid_one_epoch(loader_valid)
 
@@ -677,41 +678,41 @@ class TorchTrainer:
             self.global_epoch += 1
 
         # 中文：DDP 训练结束后，销毁进程组，释放资源
-        if self.parallel == 'ddp':
-            dist.destroy_process_group()
+        # if self.parallel == 'ddp':
+        #     dist.destroy_process_group()
 
-    def _train_ddp(self, rank, dist_url, loader, loader_valid, num_epochs):
-        # 中文：DDP 子进程入口，设置随机种子、进程组并绑定设备
-        seed_everything(self.random_state, self.deterministic)
-        self.rank = rank
-        dist.init_process_group(
-            backend='nccl', init_method=dist_url,
-            world_size=self.world_size, rank=rank)
-        comm.sync()
-        torch.cuda.set_device(self.rank)
-        if self.rank == 0:
-            self.logger(f'All processes initialized.')
+    # def _train_ddp(self, rank, dist_url, loader, loader_valid, num_epochs):
+    #     # 中文：DDP 子进程入口，设置随机种子、进程组并绑定设备
+    #     seed_everything(self.random_state, self.deterministic)
+    #     self.rank = rank
+    #     dist.init_process_group(
+    #         backend='nccl', init_method=dist_url,
+    #         world_size=self.world_size, rank=rank)
+    #     comm.sync()
+    #     torch.cuda.set_device(self.rank)
+    #     if self.rank == 0:
+    #         self.logger(f'All processes initialized.')
 
-        ''' Configure model and loader '''
-        self._configure_model()
-        loader = self._configure_loader_ddp(loader)
-        loader_valid = self._configure_loader_ddp(loader_valid, shuffle=False)
+    #     ''' Configure model and loader '''
+    #     self._configure_model()
+    #     loader = self._configure_loader_ddp(loader)
+    #     loader_valid = self._configure_loader_ddp(loader_valid, shuffle=False)
 
-        ''' Train '''
-        self._train(loader, loader_valid, num_epochs)
+    #     ''' Train '''
+    #     self._train(loader, loader_valid, num_epochs)
 
-    def _train_xla(self, rank, loader, loader_valid, num_epochs):
-        # 中文：XLA 设备训练入口，使用 XLA loader 并分发到 TPU core
-        seed_everything(self.random_state, self.deterministic)
-        self.device = xm.xla_device()
-        self.rank = xm.get_ordinal()
-        self._configure_model()
-        loader = self._configure_loader_ddp(loader)
-        loader_valid = self._configure_loader_ddp(loader_valid, shuffle=False)
-        self._train(
-            loader.per_device_loader(self.device),
-            loader_valid.per_device_loader(self.device),
-            num_epochs)
+    # def _train_xla(self, rank, loader, loader_valid, num_epochs):
+    #     # 中文：XLA 设备训练入口，使用 XLA loader 并分发到 TPU core
+    #     seed_everything(self.random_state, self.deterministic)
+    #     self.device = xm.xla_device()
+    #     self.rank = xm.get_ordinal()
+    #     self._configure_model()
+    #     loader = self._configure_loader_ddp(loader)
+    #     loader_valid = self._configure_loader_ddp(loader_valid, shuffle=False)
+    #     self._train(
+    #         loader.per_device_loader(self.device),
+    #         loader_valid.per_device_loader(self.device),
+    #         num_epochs)
 
     def predict(self, loader, parallel=None, progress_bar=False):
         # 中文：仅前向推理流程，不依赖梯度；DDP 推理未实现
@@ -721,10 +722,10 @@ class TorchTrainer:
         if not self._model_ready: # is model configured?
             self.fp16 = False
             self.logger = DummyLogger('')
-            if parallel == 'ddp':
-                raise NotImplementedError('DDP prediction is not implemented.')
-            else:
-                self._configure_model()
+            # if parallel == 'ddp':
+            #     raise NotImplementedError('DDP prediction is not implemented.')
+            # else:
+            self._configure_model()
                 
         if progress_bar:
             iterator = tqdm(loader, desc='inference')
@@ -792,9 +793,11 @@ class TorchTrainer:
               # Training option
               fp16=False, parallel=None, grad_accumulations=1, 
               deterministic=None, random_state=0, 
-              clip_grad=None, max_grad_norm=10000, 
+              # clip_grad=None, 
+            #   max_grad_norm=10000, 
               # Logging
-              logger=None, tb_logger=None, progress_bar=False, 
+              logger=None, # tb_logger=None, 
+              progress_bar=False, 
               ):
         # Register params
         # 中文：接收训练所需的核心对象与开关配置，存入实例属性
@@ -805,13 +808,13 @@ class TorchTrainer:
         self.scheduler_target = scheduler_target
         self.grad_accumulations = grad_accumulations
         self.deterministic = deterministic
-        self.clip_grad = clip_grad
-        self.max_grad_norm = max_grad_norm
+        # self.clip_grad = clip_grad
+        # self.max_grad_norm = max_grad_norm
         self.random_state = random_state
         self.eval_metric = eval_metric
         self.monitor_metrics = monitor_metrics
         self.logger = logger
-        self.tb_logger = tb_logger
+        # self.tb_logger = tb_logger
         self.fp16 = fp16
         self.parallel = parallel
         self.progress_bar = progress_bar
@@ -853,8 +856,8 @@ class TorchTrainer:
         else:
             raise ValueError('Invalid type of logger.')
 
-        if self.tb_logger is None:
-            self.tb_logger = DummyTensorBoardLogger()
+        # if self.tb_logger is None:
+        #     self.tb_logger = DummyTensorBoardLogger()
 
         ''' Configure loss function and metrics '''
         # 中文：若未指定 eval_metric，则默认用 criterion 作为度量；保证 monitor_metrics 为列表
@@ -890,54 +893,54 @@ class TorchTrainer:
         }
         self._states = []
 
-        if self.parallel == 'ddp':
-            if self.xla:
-                xmp.spawn(
-                    self._train_xla,
-                    args=(loader, loader_valid, num_epochs),
-                    nprocs=self.world_size,
-                    start_method='fork'
-                )
+        # if self.parallel == 'ddp':
+        #     if self.xla:
+        #         xmp.spawn(
+        #             self._train_xla,
+        #             args=(loader, loader_valid, num_epochs),
+        #             nprocs=self.world_size,
+        #             start_method='fork'
+        #         )
 
-            else:
-                dist_url = f'tcp://127.0.0.1:{comm.find_free_port()}'
-                session_id = str(uuid.uuid4())
-                origin = Path.cwd() / __main__.__file__
-                # 中文：使用 torch.distributed.launch 启动多进程并通过临时文件传参
-                self.logger(f'DDP URL :\t{dist_url}')
-                self.logger(f'session id :\t{session_id}')
-                self.logger(f'__main__ :\t{origin}')
+        #     else:
+        #         dist_url = f'tcp://127.0.0.1:{comm.find_free_port()}'
+        #         session_id = str(uuid.uuid4())
+        #         origin = Path.cwd() / __main__.__file__
+        #         # 中文：使用 torch.distributed.launch 启动多进程并通过临时文件传参
+        #         self.logger(f'DDP URL :\t{dist_url}')
+        #         self.logger(f'session id :\t{session_id}')
+        #         self.logger(f'__main__ :\t{origin}')
                 
-                ddp_tmp = {
-                    'trainer': self,
-                    'dist_url': dist_url,
-                    'loader': loader,
-                    'loader_valid': loader_valid,
-                    'num_epochs': num_epochs
-                }
-                ddp_tmp_path = Path(f'.ku_ddp_tmp_{session_id}')
-                with open(ddp_tmp_path, 'wb') as f:
-                    pickle.dump(ddp_tmp, f)
-                ddp_worker_path = Path(inspect.getfile(
-                    self.__class__)).parent/'ddp_worker.py'
-                env_copy = os.environ.copy()
-                env_copy['OMP_NUM_THREADS'] = '1'
-                command = [
-                    'python',
-                    '-m', 'torch.distributed.launch',
-                    '--nproc_per_node', str(self.world_size), 
-                    ddp_worker_path,
-                    '--path', ddp_tmp_path,
-                    '--origin', str(origin)
-                ]
-                proc = subprocess.Popen(
-                    command, env=env_copy, cwd=origin.parent)
-                proc.wait()
-                if ddp_tmp_path.exists():
-                    ddp_tmp_path.unlink()
-        else:
-            self._configure_model()
-            self._train(loader, loader_valid, num_epochs)
+        #         ddp_tmp = {
+        #             'trainer': self,
+        #             'dist_url': dist_url,
+        #             'loader': loader,
+        #             'loader_valid': loader_valid,
+        #             'num_epochs': num_epochs
+        #         }
+        #         ddp_tmp_path = Path(f'.ku_ddp_tmp_{session_id}')
+        #         with open(ddp_tmp_path, 'wb') as f:
+        #             pickle.dump(ddp_tmp, f)
+        #         ddp_worker_path = Path(inspect.getfile(
+        #             self.__class__)).parent/'ddp_worker.py'
+        #         env_copy = os.environ.copy()
+        #         env_copy['OMP_NUM_THREADS'] = '1'
+        #         command = [
+        #             'python',
+        #             '-m', 'torch.distributed.launch',
+        #             '--nproc_per_node', str(self.world_size), 
+        #             ddp_worker_path,
+        #             '--path', ddp_tmp_path,
+        #             '--origin', str(origin)
+        #         ]
+        #         proc = subprocess.Popen(
+        #             command, env=env_copy, cwd=origin.parent)
+        #         proc.wait()
+        #         if ddp_tmp_path.exists():
+        #             ddp_tmp_path.unlink()
+        # else:
+        self._configure_model()
+        self._train(loader, loader_valid, num_epochs)
 
     fit = train  # for compatibility # 为了兼容性，将 fit 方法指向 train 方法
     load_checkpoint = load_snapshot

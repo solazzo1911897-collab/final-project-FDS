@@ -106,10 +106,10 @@ class Baseline:
     
     # 训练技术配置
     amp = True  # 自动混合精度训练（FP16），加速训练并节省显存
-    parallel = None  # 并行训练配置（None表示单GPU）
+    # parallel = None  # 并行训练配置（None表示单GPU）
     deterministic = False  # 是否使用确定性算法（False表示允许非确定性操作以提升性能）
-    clip_grad = 'value'  # 梯度裁剪方式：'value'表示按值裁剪
-    max_grad_norm = 10000  # 梯度裁剪阈值（非常大，实际不裁剪）
+    # clip_grad = 'value'  # 梯度裁剪方式：'value'表示按值裁剪
+    # max_grad_norm = 10000  # 梯度裁剪阈值（非常大，实际不裁剪）
     
     # 训练钩子和回调函数
     hook = TrainHook()  # 训练钩子
