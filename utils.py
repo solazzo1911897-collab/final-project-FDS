@@ -247,28 +247,31 @@ class SaveEveryEpoch(CallbackTemplate):
 
 class EarlyStopping(CallbackTemplate):
     '''
-    Early stops the training if validation loss doesn't improve after a given patience.
-    patience: int       = 
-    target: str         = 
-    maximize: bool      = 
-    skip_epoch: int     =
+    早停回调：在验证指标长期未提升时提前停止训练
+    参数：
+        patience   ：容忍多少个 epoch 未提升后触发早停
+        target     ：监控的指标键名（env.state 中的键，如 'valid_metric'）
+        maximize   ：True 表示指标越大越好；False 表示越小越好
+        skip_epoch ：前多少个 epoch 不做早停判断（热身期）
     '''
 
     def __init__(self, patience=5, target='valid_metric', maximize=False, skip_epoch=0):
         super().__init__()
+        # 维护早停相关状态，便于保存/恢复
         self.state = {
-            'patience': patience,
-            'target': target,
-            'maximize': maximize,
-            'skip_epoch': skip_epoch,
-            'counter': 0,
-            'best_score': None,
-            'best_epoch': None
+            'patience': patience,      # 容忍未提升的次数上限
+            'target': target,          # 监控的指标名
+            'maximize': maximize,      # 指标是否越大越好
+            'skip_epoch': skip_epoch,  # 前若干 epoch 不检查早停
+            'counter': 0,              # 连续未提升的计数
+            'best_score': None,        # 历史最佳指标
+            'best_epoch': None         # 取得最佳指标的全局 epoch
         }
 
     def after_epoch(self, env):
         score = env.state[self.state['target']]
         epoch = env.state['epoch'] # local epoch
+        # 跳过热身期：直接记录当前指标为最佳，并保存快照
         if epoch < self.state['skip_epoch'] or epoch == 0:
             self.state['best_score'] = score
             self.state['best_epoch'] = env.global_epoch
@@ -276,18 +279,21 @@ class EarlyStopping(CallbackTemplate):
             env.state['best_score'] = self.state['best_score']
             env.state['best_epoch'] = self.state['best_epoch']
         else:
-            if (self.state['maximize'] and score > self.state['best_score']) or \
-                    (not self.state['maximize'] and score < self.state['best_score']):
+            # 判断当前指标是否优于历史最佳
+            improved = (self.state['maximize'] and score > self.state['best_score']) or \
+                       (not self.state['maximize'] and score < self.state['best_score'])
+            if improved:
                 self.state['best_score'] = score
                 self.state['best_epoch'] = env.global_epoch
-                self.state['counter'] = 0
-                env.checkpoint = True
+                self.state['counter'] = 0          # 重置未提升计数
+                env.checkpoint = True              # 标记需保存最佳快照
                 env.state['best_score'] = self.state['best_score']
                 env.state['best_epoch'] = self.state['best_epoch']
             else:
-                self.state['counter'] += 1
+                self.state['counter'] += 1         # 未提升，计数+1
 
             env.state['patience'] = self.state['counter']
+            # 超过耐心阈值，触发早停
             if self.state['counter'] >= self.state['patience']:
                 env.stop_train = True
 

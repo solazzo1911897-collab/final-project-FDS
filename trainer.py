@@ -79,8 +79,8 @@ class TorchTrainer:
         '''
         self.before_epoch = [func.before_epoch for func in callbacks]
         self.after_epoch = [func.after_epoch for func in callbacks]
-        # self._save_snapshot = [func.save_snapshot for func in callbacks]
-        # self._load_snapshot = [func.load_snapshot for func in callbacks]
+        self._save_snapshot = [func.save_snapshot for func in callbacks]
+        self._load_snapshot = [func.load_snapshot for func in callbacks]
 
     def _register_hook(self, hook):
         '''
@@ -489,10 +489,10 @@ class TorchTrainer:
 
             # 中文：如果设置了 checkpoint 标志（通常由回调函数设置），则保存模型快照
             # 只在主进程执行，避免多进程重复保存
-            # if self.checkpoint and self.rank == 0:
-            #     ''' Save model '''
-            #     self.save_snapshot()
-            #     self.checkpoint = False
+            if self.checkpoint and self.rank == 0: # EarlyStopping里设置的checkpoint为True
+                ''' Save model '''
+                self.save_snapshot()
+                self.checkpoint = False
 
             # 中文：检查是否触发提前停止（通常由 EarlyStopping 回调设置）
             # 如果 stop_train 为 True，则终止训练循环
@@ -532,6 +532,17 @@ class TorchTrainer:
         prediction = torch.cat(prediction).cpu().numpy()
 
         return prediction
+    
+    
+    def save_snapshot(self, path=None):
+        # 中文：遍历回调执行保存逻辑；默认回调会把模型/优化器等状态写入文件
+        for func in self._save_snapshot:
+            func(self, path)
+
+    def load_snapshot(self, path=None, device=None):
+        # 中文：与保存对应，从快照恢复；可选择加载到指定 device
+        for func in self._load_snapshot:
+            func(self, path, device)
 
     def register(self, hook=TrainHook(), callbacks=[SaveSnapshot()]):
         '''

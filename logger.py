@@ -62,6 +62,7 @@ class TorchLogger:
                 # 中文：输出早停相关的 best_score 与连续未提升计数
                 best_score = env.state['best_score']
                 counter = env.state['patience']
+                # counter>0 表示验证指标已连续未提升 counter 次
                 if counter > 0:
                     log_str += f'best={best_score:.6f}(*{counter})'
             elif item == 'gpu_memory':
