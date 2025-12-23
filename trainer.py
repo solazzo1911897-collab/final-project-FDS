@@ -417,14 +417,14 @@ class TorchTrainer:
             learning_rate = [param_group['lr']
                              for param_group in self.optimizer.param_groups]
             # 准备TensorBoard日志
-            logs = [
-                ('batch_train_loss', loss_batch),
-                ('batch_train_lr', learning_rate)
-            ]
-            # 如果有batch级别的评估指标，也记录到日志
-            if len(self.epoch_storage['batch_metric']) > 0:
-                metric = self.epoch_storage['batch_metric'][-1]
-                logs.append(('batch_valid_mertric', metric))
+            # logs = [
+            #     ('batch_train_loss', loss_batch),
+            #     ('batch_train_lr', learning_rate)
+            # ]
+            # # 如果有batch级别的评估指标，也记录到日志
+            # if len(self.epoch_storage['batch_metric']) > 0:
+            #     metric = self.epoch_storage['batch_metric'][-1]
+            #     logs.append(('batch_valid_mertric', metric))
             # 写入TensorBoard日志
             # self.tb_logger.list_of_scalars_summary(logs, batches_done)
             # 保存损失值到epoch存储中
@@ -482,10 +482,10 @@ class TorchTrainer:
 
         # ========== 记录epoch级别的日志 ==========
         # 准备TensorBoard日志
-        logs = [
-            ('epoch_train_loss', loss_total),
-            ('epoch_train_metric', metric_total),
-        ]
+        # logs = [
+        #     ('epoch_train_loss', loss_total),
+        #     ('epoch_train_metric', metric_total),
+        # ]
         # 写入TensorBoard日志
         # self.tb_logger.list_of_scalars_summary(logs, self.global_epoch)
         
@@ -524,12 +524,12 @@ class TorchTrainer:
                 # else:  # Use loss on device: 0
                 loss_batch = loss.item()
 
-                logs = [
-                    ('batch_valid_loss', loss_batch),
-                ]
-                if len(self.epoch_storage['batch_metric']) > 0:
-                    metric = self.epoch_storage['batch_metric'][-1]
-                    logs.append(('batch_valid_mertric', metric))
+                # logs = [
+                #     ('batch_valid_loss', loss_batch),
+                # ]
+                # if len(self.epoch_storage['batch_metric']) > 0:
+                #     metric = self.epoch_storage['batch_metric'][-1]
+                #     logs.append(('batch_valid_mertric', metric))
                 # self.tb_logger.list_of_scalars_summary(logs, batches_done)
                 self.epoch_storage['loss'].append(loss_batch)
 
@@ -558,10 +558,10 @@ class TorchTrainer:
         if metric_total is None:
             metric_total = loss_total
 
-        logs = [
-            ('epoch_valid_loss', loss_total),
-            ('epoch_valid_metric', metric_total),
-        ]
+        # logs = [
+        #     ('epoch_valid_loss', loss_total),
+        #     ('epoch_valid_metric', metric_total),
+        # ]
         # self.tb_logger.list_of_scalars_summary(logs, self.global_epoch)
         return loss_total, metric_total, monitor_metrics_total
 
