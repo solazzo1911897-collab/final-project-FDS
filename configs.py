@@ -52,7 +52,7 @@ class Baseline:
     test_cache = INPUT_DIR/'test_cache.pickle'   # 测试集缓存路径（可选）
     
     # 交叉验证配置
-    cv = 2  # 5折交叉验证
+    cv = 3  # 5折交叉验证
     splitter = StratifiedKFold(n_splits=cv, shuffle=True, random_state=seed)  # 分层K折，保持类别分布
     
     # 数据集配置
@@ -77,7 +77,7 @@ class Baseline:
     
     # 训练超参数
     num_epochs = 5  # 训练轮数
-    batch_size = 64  # 批次大小  T4 16GB 64大概占满
+    batch_size = 128  # 批次大小  T4 16GB 64大概占满
     # 128 T4 RuntimeError: CUDA out of memory. Tried to allocate 144.00 MiB (GPU 0; 14.74 GiB total capacity; 13.38 GiB already allocated; 64.12 MiB free; 13.59 GiB reserved in total by PyTorch)
     # 128 A100 40g 显存占29g 
     
@@ -165,7 +165,7 @@ class B2CQT(Baseline):
     dataset_params = dict(
         norm_factor=[4.61e-20, 4.23e-20, 1.11e-20]  # 三个探测器的归一化因子
     )
-    num_epochs = 4  # 增加训练轮数
+    num_epochs = 8  # 增加训练轮数
     scheduler_params = dict(T_0=8, T_mult=1, eta_min=1e-6)  # 调整调度器周期
     optimizer_params = dict(lr=1e-3, weight_decay=1e-6)  # 提高学习率到1e-3
 
