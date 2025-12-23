@@ -73,7 +73,8 @@ class SpectroCNN(nn.Module):
         
         # GeM（Generalized Mean Pooling）：可学习的池化方式，比平均池化更灵活
         # p=3 表示使用 L3 范数，eps=1e-4 是数值稳定性参数
-        global_pool = GeM(p=3, eps=1e-4)
+        # global_pool = GeM(p=3, eps=1e-4)
+        global_pool = nn.Identity()
         
 
         self.cnn = nn.Sequential(
