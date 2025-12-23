@@ -52,7 +52,7 @@ class Baseline:
     test_cache = INPUT_DIR/'test_cache.pickle'   # 测试集缓存路径（可选）
     
     # 交叉验证配置
-    cv = 1  # 5折交叉验证
+    cv = 2  # 5折交叉验证
     splitter = StratifiedKFold(n_splits=cv, shuffle=True, random_state=seed)  # 分层K折，保持类别分布
     
     # 数据集配置
