@@ -3,23 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import timm
 
-# from modules import *
-
-# from kuma_utils.torch.modules import AdaptiveConcatPool2d, GeM, AdaptiveGeM
-# from kuma_utils.torch.utils import freeze_module
-
-
-class Flatten(nn.Module):
-    def __init__(self, dim=1):
-        super().__init__()
-        self.dim = dim
-
-    def forward(self, x): 
-        input_shape = x.shape
-        output_shape = [input_shape[i] for i in range(self.dim)] + [-1]
-        return x.view(*output_shape)
-
-
 
 class SpectroCNN(nn.Module):
 
