@@ -59,32 +59,35 @@ class SpectroCNN(nn.Module):
                                      **timm_params)
         # self.mixup_mode = 'input'
                 # 如果指定了自定义分类器或注意力机制，需要替换 CNN backbone 的原始分类头
-        # if custom_classifier != 'none' or custom_attention != 'none':
-        model_type = self.cnn.__class__.__name__  # 获取模型类型名称（如 'EfficientNet'）
-        try:
-            # 获取原始分类器的输入特征维度（用于后续构建自定义分类器）
-            feature_dim = self.cnn.get_classifier().in_features
-            # 移除原始分类器（重置为空的分类器，只保留特征提取部分）
-            self.cnn.reset_classifier(0, '')
-        except:
-            # 如果模型不支持 get_classifier() 方法，抛出错误
-            raise ValueError(f'Unsupported model type: {model_type}')
+        
+        
+        
+        
+        # # if custom_classifier != 'none' or custom_attention != 'none':
+        # model_type = self.cnn.__class__.__name__  # 获取模型类型名称（如 'EfficientNet'）
+        # try:
+        #     # 获取原始分类器的输入特征维度（用于后续构建自定义分类器）
+        #     feature_dim = self.cnn.get_classifier().in_features
+        #     # 移除原始分类器（重置为空的分类器，只保留特征提取部分）
+        #     self.cnn.reset_classifier(0, '')
+        # except:
+        #     # 如果模型不支持 get_classifier() 方法，抛出错误
+        #     raise ValueError(f'Unsupported model type: {model_type}')
 
         
-        # GeM（Generalized Mean Pooling）：可学习的池化方式，比平均池化更灵活
-        # p=3 表示使用 L3 范数，eps=1e-4 是数值稳定性参数
+        # # GeM（Generalized Mean Pooling）：可学习的池化方式，比平均池化更灵活
+        # # p=3 表示使用 L3 范数，eps=1e-4 是数值稳定性参数
         # global_pool = GeM(p=3, eps=1e-4)
-        global_pool = nn.Identity()
         
 
-        self.cnn = nn.Sequential(
-            self.cnn, 
-            global_pool, 
-            Flatten(),
-            nn.Linear(feature_dim, 512), 
-            nn.ReLU(inplace=True), 
-            nn.Linear(512, num_classes)
-        )
+        # self.cnn = nn.Sequential(
+        #     self.cnn, 
+        #     global_pool, 
+        #     Flatten(),
+        #     nn.Linear(feature_dim, 512), 
+        #     nn.ReLU(inplace=True), 
+        #     nn.Linear(512, num_classes)
+        # )
         
         
         
