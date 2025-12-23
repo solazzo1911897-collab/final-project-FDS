@@ -165,7 +165,7 @@ class B2CQT(Baseline):
     dataset_params = dict(
         norm_factor=[4.61e-20, 4.23e-20, 1.11e-20]  # 三个探测器的归一化因子
     )
-    num_epochs = 8  # 增加训练轮数
+    num_epochs = 10  # 增加训练轮数
     scheduler_params = dict(T_0=8, T_mult=1, eta_min=1e-6)  # 调整调度器周期
     optimizer_params = dict(lr=1e-3, weight_decay=1e-6)  # 提高学习率到1e-3
 
@@ -198,7 +198,7 @@ class B2CWT(B2CQT):
     """
     name = 'b2_cwt'
     model_params = dict(
-        model_name='tf_efficientnet_b0',  # tf_efficientnet_b0  # b7爆显存 换用80GB的a100 80G还是不行
+        model_name='tf_efficientnet_b4',  # tf_efficientnet_b0  # b7爆显存 换用80GB的a100 80G还是不行
         pretrained=True,
         num_classes=1,
         # spectrogram=ComplexMorletCWT,
