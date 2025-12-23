@@ -40,65 +40,48 @@ class SpectroCNN(nn.Module):
                  spectrogram=None,
                  spec_params={},
                  resize_img=None,
-                 upsample='nearest', 
-                 # mixup='mixup',
-                 norm_spec=False,
-                 return_spec=False):
+                 upsample='nearest'):
         
         super().__init__()
         if isinstance(spectrogram, nn.Module): # deprecated
             self.spectrogram = spectrogram
         else:
             self.spectrogram = spectrogram(**spec_params)
-        self.is_cnnspec = self.spectrogram.__class__.__name__ in [
-            'WaveNetSpectrogram', 'CNNSpectrogram', 'MultiSpectrogram', 'ResNetSpectrogram']
 
         self.cnn = timm.create_model(model_name, 
                                      pretrained=pretrained, 
                                      num_classes=num_classes,
                                      **timm_params)
-        # self.mixup_mode = 'input'
-                # 如果指定了自定义分类器或注意力机制，需要替换 CNN backbone 的原始分类头
-        
-        
-        
-        
-        # # if custom_classifier != 'none' or custom_attention != 'none':
-        # model_type = self.cnn.__class__.__name__  # 获取模型类型名称（如 'EfficientNet'）
-        # try:
-        #     # 获取原始分类器的输入特征维度（用于后续构建自定义分类器）
-        #     feature_dim = self.cnn.get_classifier().in_features
-        #     # 移除原始分类器（重置为空的分类器，只保留特征提取部分）
-        #     self.cnn.reset_classifier(0, '')
-        # except:
-        #     # 如果模型不支持 get_classifier() 方法，抛出错误
-        #     raise ValueError(f'Unsupported model type: {model_type}')
+
+
+        model_type = self.cnn.__class__.__name__  # 获取模型类型名称（如 'EfficientNet'）
+        try:
+            # 获取原始分类器的输入特征维度（用于后续构建自定义分类器）
+            feature_dim = self.cnn.get_classifier().in_features
+            # 移除原始分类器（重置为空的分类器，只保留特征提取部分）
+            self.cnn.reset_classifier(0, '')
+        except:
+            # 如果模型不支持 get_classifier() 方法，抛出错误
+            raise ValueError(f'Unsupported model type: {model_type}')
 
         
-        # # GeM（Generalized Mean Pooling）：可学习的池化方式，比平均池化更灵活
-        # # p=3 表示使用 L3 范数，eps=1e-4 是数值稳定性参数
-        # global_pool = GeM(p=3, eps=1e-4)
+        # GeM（Generalized Mean Pooling）：可学习的池化方式，比平均池化更灵活
+        # p=3 表示使用 L3 范数，eps=1e-4 是数值稳定性参数
+        global_pool = GeM(p=3, eps=1e-4)
         
 
-        # self.cnn = nn.Sequential(
-        #     self.cnn, 
-        #     global_pool, 
-        #     Flatten(),
-        #     nn.Linear(feature_dim, 512), 
-        #     nn.ReLU(inplace=True), 
-        #     nn.Linear(512, num_classes)
-        # )
-        
-        
-        
-        
-        self.norm_spec = norm_spec
-        if self.norm_spec:
-            self.norm = nn.BatchNorm2d(3)
+        self.cnn = nn.Sequential(
+            self.cnn, 
+            global_pool, 
+            Flatten(),
+            nn.Linear(feature_dim, 512), 
+            nn.ReLU(inplace=True), 
+            nn.Linear(512, num_classes)
+        )
+
         self.resize_img = resize_img
         if isinstance(self.resize_img, int):
             self.resize_img = (self.resize_img, self.resize_img)
-        self.return_spec = return_spec
         self.upsample = upsample
         # self.mixup = mixup
         # assert self.mixup in ['mixup', 'cutmix']
@@ -129,17 +112,6 @@ class SpectroCNN(nn.Module):
         # 重新组织维度：将 (batch*channels, freq, time) 恢复为 (batch, channels, freq, time)
         spec = spec.view(bs, ch, f, t)
         
-        # ========== 3. 应用 Mixup/CutMix 数据增强 ==========
-        # lam: mixup 的混合系数（lambda），如果为 None 则不进行 mixup
-        # idx: 用于 mixup 的样本索引
-        # if lam is not None: 
-        #     if self.mixup == 'mixup' and self.mixup_mode == 'input':
-        #         # 在输入层（时频图）应用 Mixup：混合两个样本的时频图
-        #         # 公式：spec_mixed = lam * spec[idx1] + (1-lam) * spec[idx2]
-        #         spec, lam = mixup(spec, lam, idx)
-        #     elif self.mixup == 'cutmix':
-        #         # 应用 CutMix：用另一个样本的矩形区域替换当前样本的对应区域
-        #         spec, lam = cutmix(spec, lam, idx)
         
 
         # ========== 调整时频图尺寸 ==========
@@ -171,17 +143,4 @@ class SpectroCNN(nn.Module):
         if self.resize_img is not None:
             spec = F.interpolate(spec, size=self.resize_img, mode=self.upsample)
 
-        if self.norm_spec:
-            spec = self.norm(spec)
-        
-        # if self.mixup_mode == 'manifold':
-        #     self.cnn[3][1].update(lam, idx)
-
-        # if self.return_spec and lam is not None:
-        #     return self.cnn(spec), spec, lam
-        if self.return_spec:
-            return self.cnn(spec), spec
-        # elif lam is not None:
-        #     return self.cnn(spec), lam
-        else:
-            return self.cnn(spec)
+        return self.cnn(spec)

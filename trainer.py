@@ -49,20 +49,13 @@ class TorchTrainer:
         self.serial = serial
         self.device, self.device_ids = get_device(device)
         # self.xla = self.device.type == 'xla'
-        self.xla = False
+        # self.xla = False
         self.world_size = len(self.device_ids)
         self.model = model
         self.rank = 0
         self._register_ready = False
         self._model_ready = False
 
-        ### Implicit attributes
-        # DDP
-        # self.ddp_sync_batch_norm = True
-        # self.ddp_average_loss = True
-        # self.ddp_sync_last = False # deprecated
-        # self.ddp_workers = -1
-        # MISC
         self.debug = False
 
     def _register_callbacks(self, callbacks):
@@ -135,7 +128,7 @@ class TorchTrainer:
         这是训练循环的核心函数，负责：
         1. 遍历训练数据加载器中的所有批次
         2. 执行前向传播、计算损失、反向传播和参数更新
-        3. 支持多种训练模式：FP16混合精度、SAM优化器、DDP分布式训练、XLA设备
+        3. 支持多种训练模式：FP16混合精度、单机训练
         4. 收集和统计训练指标（损失、指标、学习率等）
         5. 检测NaN值并记录警告
         6. 统计数据加载和训练耗时
@@ -217,13 +210,9 @@ class TorchTrainer:
             inputs = [t.to(self.device) for t in inputs]
             
             # ========== 前向传播和反向传播 ==========
-            # 根据是否使用FP16混合精度和SAM优化器，选择不同的训练策略
-            # 主要分为四种情况：
-            # 1. FP16 + SAM: 使用混合精度和SAM的两步优化
-            # 2. FP16 + 普通优化器: 使用混合精度和标准优化
-            # 3. FP32 + XLA + SAM: XLA设备不支持SAM，会报错
-            # 4. FP32 + SAM: 使用FP32精度和SAM的两步优化
-            # 5. FP32 + 普通优化器: 标准训练流程
+            # 根据是否使用FP16混合精度，选择不同的训练策略：
+            # 1. FP16：使用 GradScaler 进行缩放训练
+            # 2. FP32：标准精度训练流程
             
             if self.fp16:
                 # ========== FP16混合精度训练 ==========
@@ -242,34 +231,10 @@ class TorchTrainer:
 
                 # 当达到梯度累积的步数时，执行参数更新
                 if (batch_i + 1) % self.grad_accumulations == 0:
-                    if self.sam:
-                        # ========== FP16 + SAM优化器（Sharpness-Aware Minimization）==========
-                        # SAM是一种两阶段优化器，通过最小化损失函数的尖锐度来提高泛化能力
-                        
-                        # 第一步：在当前位置计算梯度并执行第一次优化步骤
-                        optimizer_state = scaler._per_optimizer_states[id(self.optimizer)]
-                        scaler.unscale_(self.optimizer)  # 取消梯度缩放，准备检查NaN
-                        # 检查是否有NaN/Inf梯度，如果没有则执行第一步
-                        if not sum(v.item() for v in optimizer_state["found_inf_per_device"].values()):
-                            self.optimizer.first_step(zero_grad=True)  # SAM的第一步：移动到尖锐区域
-                        optimizer_state["stage"] = 2
-                        scaler.update()  # 更新缩放因子
-                        
-                        # 第二步：在第一步后的位置重新计算梯度并执行第二次优化步骤
-                        with amp.autocast():
-                            loss2, _ = self.forward_train(self, inputs)  # 在扰动后的位置计算损失
-                        scaler.scale(loss2).backward()  # 反向传播
-                        scaler.unscale_(self.optimizer)
-                        # 再次检查NaN/Inf，如果没有则执行第二步
-                        if not sum(v.item() for v in optimizer_state["found_inf_per_device"].values()):
-                            self.optimizer.second_step(zero_grad=True)  # SAM的第二步：回到平坦区域
-                        optimizer_state["stage"] = 2
-                        scaler.update()
-                    else:
-                        # ========== FP16 + 普通优化器 ==========
-                        # 标准优化步骤：更新参数并更新梯度缩放器
-                        scaler.step(self.optimizer)  # 执行优化步骤
-                        scaler.update()  # 更新缩放因子（根据是否有NaN/Inf调整）
+                    # ========== FP16 + 普通优化器 ==========
+                    # 标准优化步骤：更新参数并更新梯度缩放器
+                    scaler.step(self.optimizer)  # 执行优化步骤
+                    scaler.update()  # 更新缩放因子（根据是否有NaN/Inf调整）
             else:
                 # ========== FP32标准精度训练 ==========
                 # 前向传播：计算损失和模型输出
@@ -284,17 +249,9 @@ class TorchTrainer:
 
                 # 当达到梯度累积的步数时，执行参数更新
                 if (batch_i + 1) % self.grad_accumulations == 0:
-                    if True:  # 替换原来的 else
-                        # ========== CUDA/CPU设备训练 ==========
-                        if self.sam:
-                            # FP32 + SAM优化器：两阶段优化
-                            self.optimizer.first_step(zero_grad=True)   # 第一步：移动到尖锐区域
-                            loss2, _ = self.forward_train(self, inputs)  # 在扰动位置重新计算损失
-                            loss2.backward()  # 反向传播
-                            self.optimizer.second_step(zero_grad=True)  # 第二步：回到平坦区域
-                        else:
-                            # FP32 + 普通优化器：标准优化步骤
-                            self.optimizer.step()
+                    # ========== CUDA/CPU设备训练 ==========
+                    # FP32 + 普通优化器：标准优化步骤
+                    self.optimizer.step()
                     
                     # 如果使用batch级别的学习率调度器，在每个batch后更新学习率
                     if self.batch_scheduler:
@@ -624,10 +581,6 @@ class TorchTrainer:
         # self.checkpoint = False
         self.outoffold = None
         self.prediction = None
-        if self.optimizer.__class__.__name__ == 'SAM':
-            self.sam = True
-        else:
-            self.sam = False
 
         ''' Configure directory '''
         if export_dir is None:
