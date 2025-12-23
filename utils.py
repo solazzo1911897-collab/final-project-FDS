@@ -6,10 +6,10 @@ import torch
 import time
 
 
-def freeze_module(module):
-    # 中文：冻结模型参数，关闭梯度计算（常用于微调时固定 backbone）
-    for i, param in enumerate(module.parameters()):
-        param.requires_grad = False
+# def freeze_module(module):
+#     # 中文：冻结模型参数，关闭梯度计算（常用于微调时固定 backbone）
+#     for i, param in enumerate(module.parameters()):
+#         param.requires_grad = False
 
 
 def fit_state_dict(state_dict, model):
@@ -220,19 +220,6 @@ class CallbackTemplate:
         return self.__class__.__name__
 
 
-
-
-class SaveEveryEpoch(CallbackTemplate):
-    '''
-    Save snapshot every epoch
-    '''
-
-    def __init__(self, patience=5, target='valid_metric', maximize=False, skip_epoch=0):
-        super().__init__()
-        
-    def after_epoch(self, env):
-        env.checkpoint = True
-    
 
 class EarlyStopping(CallbackTemplate):
     '''
@@ -472,9 +459,6 @@ class TrainHook(HookTemplate):
             metric_total, monitor_total = self._evaluate(
                 trainer, storage['approx'], storage['target'])
         return metric_total, monitor_total
-
-
-SimpleHook = TrainHook  # 兼容性别名，保持向后兼容
 
 
 
