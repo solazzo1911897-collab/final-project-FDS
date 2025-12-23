@@ -201,15 +201,22 @@ class B2CWT(B2CQT):
         model_name='tf_efficientnet_b2',  # tf_efficientnet_b0  # b7爆显存 换用80GB的a100 80G还是不行
         pretrained=True,
         num_classes=1,
-        spectrogram=ComplexMorletCWT,
+        # spectrogram=ComplexMorletCWT,
+        # spec_params=dict(
+        #     fs=2048, 
+        #     lower_freq=16, 
+        #     upper_freq=1024, 
+        #     wavelet_width=8,      # 更大的小波宽度
+        #     trainable_width=True, # 可训练的小波宽度（端到端优化）
+        #     stride=4,             # 更小的步长，提高时间分辨率
+        #     n_scales=128          # 128个尺度
+        # ),
+        spectrogram=CQT,
         spec_params=dict(
-            fs=2048, 
-            lower_freq=16, 
-            upper_freq=1024, 
-            wavelet_width=8,      # 更大的小波宽度
-            trainable_width=True, # 可训练的小波宽度（端到端优化）
-            stride=4,             # 更小的步长，提高时间分辨率
-            n_scales=128          # 128个尺度
+            sr=2048, 
+            fmin=16,      # 降低最小频率到16 Hz
+            fmax=1024, 
+            hop_length=8  # 更小的跳跃长度，提高时间分辨率
         ),
         resize_img=(128, 1024),   # 更宽的时间维度（1024）
         # custom_classifier='gem',  # GeM池化（Generalized Mean Pooling） 自己实现的模块
