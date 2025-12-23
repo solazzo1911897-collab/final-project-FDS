@@ -19,6 +19,16 @@ class GeM(nn.Module):
     def __repr__(self):
         return f'GeM(p={self.p}, eps={self.eps})'
 
+class Flatten(nn.Module):
+    def __init__(self, dim=1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x): 
+        input_shape = x.shape
+        output_shape = [input_shape[i] for i in range(self.dim)] + [-1]
+        return x.view(*output_shape)
+
 
 class SpectroCNN(nn.Module):
 
@@ -69,11 +79,11 @@ class SpectroCNN(nn.Module):
         self.cnn = nn.Sequential(
             self.cnn, 
             global_pool, 
+            Flatten(),
             nn.Linear(feature_dim, 512), 
             nn.ReLU(inplace=True), 
             nn.Linear(512, num_classes)
         )
-        
         
         
         
