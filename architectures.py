@@ -3,10 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 import timm
 
-from modules import *
+# from modules import *
 
-from kuma_utils.torch.modules import AdaptiveConcatPool2d, GeM, AdaptiveGeM
-from kuma_utils.torch.utils import freeze_module
+# from kuma_utils.torch.modules import AdaptiveConcatPool2d, GeM, AdaptiveGeM
+# from kuma_utils.torch.utils import freeze_module
+
+
+class Flatten(nn.Module):
+    def __init__(self, dim=1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x): 
+        input_shape = x.shape
+        output_shape = [input_shape[i] for i in range(self.dim)] + [-1]
+        return x.view(*output_shape)
 
 
 
@@ -21,7 +32,7 @@ class SpectroCNN(nn.Module):
                  spec_params={},
                  resize_img=None,
                  upsample='nearest', 
-                 mixup='mixup',
+                 # mixup='mixup',
                  norm_spec=False,
                  return_spec=False):
         
@@ -37,7 +48,7 @@ class SpectroCNN(nn.Module):
                                      pretrained=pretrained, 
                                      num_classes=num_classes,
                                      **timm_params)
-        self.mixup_mode = 'input'
+        # self.mixup_mode = 'input'
         
         self.norm_spec = norm_spec
         if self.norm_spec:
@@ -47,14 +58,14 @@ class SpectroCNN(nn.Module):
             self.resize_img = (self.resize_img, self.resize_img)
         self.return_spec = return_spec
         self.upsample = upsample
-        self.mixup = mixup
-        assert self.mixup in ['mixup', 'cutmix']
+        # self.mixup = mixup
+        # assert self.mixup in ['mixup', 'cutmix']
     
     def feature_mode(self):
         self.cnn[-1] = nn.Identity()
         self.cnn[-2] = nn.Identity()
 
-    def forward(self, s, lam=None, idx=None): # s: (batch size, wave channel, length of wave)
+    def forward(self, s, lam=None, idx=None): # s: (batch size, wave channel, length of wave)  # lam, idx 参数保留以保持接口兼容性，但不再使用
         # ========== 1. 获取输入信号维度 ==========
         # s: 输入波形信号，形状为 (batch_size, wave_channel, wave_length)
         # 例如：(32, 3, 4096) 表示 32 个样本，3 个通道（3 个探测器），每个信号长度 4096
@@ -79,14 +90,14 @@ class SpectroCNN(nn.Module):
         # ========== 3. 应用 Mixup/CutMix 数据增强 ==========
         # lam: mixup 的混合系数（lambda），如果为 None 则不进行 mixup
         # idx: 用于 mixup 的样本索引
-        if lam is not None: 
-            if self.mixup == 'mixup' and self.mixup_mode == 'input':
-                # 在输入层（时频图）应用 Mixup：混合两个样本的时频图
-                # 公式：spec_mixed = lam * spec[idx1] + (1-lam) * spec[idx2]
-                spec, lam = mixup(spec, lam, idx)
-            elif self.mixup == 'cutmix':
-                # 应用 CutMix：用另一个样本的矩形区域替换当前样本的对应区域
-                spec, lam = cutmix(spec, lam, idx)
+        # if lam is not None: 
+        #     if self.mixup == 'mixup' and self.mixup_mode == 'input':
+        #         # 在输入层（时频图）应用 Mixup：混合两个样本的时频图
+        #         # 公式：spec_mixed = lam * spec[idx1] + (1-lam) * spec[idx2]
+        #         spec, lam = mixup(spec, lam, idx)
+        #     elif self.mixup == 'cutmix':
+        #         # 应用 CutMix：用另一个样本的矩形区域替换当前样本的对应区域
+        #         spec, lam = cutmix(spec, lam, idx)
         
 
         # ========== 调整时频图尺寸 ==========
@@ -121,14 +132,14 @@ class SpectroCNN(nn.Module):
         if self.norm_spec:
             spec = self.norm(spec)
         
-        if self.mixup_mode == 'manifold':
-            self.cnn[3][1].update(lam, idx)
+        # if self.mixup_mode == 'manifold':
+        #     self.cnn[3][1].update(lam, idx)
 
-        if self.return_spec and lam is not None:
-            return self.cnn(spec), spec, lam
-        elif self.return_spec:
+        # if self.return_spec and lam is not None:
+        #     return self.cnn(spec), spec, lam
+        if self.return_spec:
             return self.cnn(spec), spec
-        elif lam is not None:
-            return self.cnn(spec), lam
+        # elif lam is not None:
+        #     return self.cnn(spec), lam
         else:
             return self.cnn(spec)
