@@ -184,7 +184,7 @@ def print_config(cfg, logger=None):
         'amp', # 'parallel', 
         'hook', 'callbacks', 'deterministic', 
         # 'clip_grad', 'max_grad_norm',
-        'pseudo_labels'
+        # 'pseudo_labels'
     ]
     _print('===== CONFIG =====')
     for key in items:

@@ -96,8 +96,8 @@ class TorchTrainer:
         '''
         self.before_epoch = [func.before_epoch for func in callbacks]
         self.after_epoch = [func.after_epoch for func in callbacks]
-        self._save_snapshot = [func.save_snapshot for func in callbacks]
-        self._load_snapshot = [func.load_snapshot for func in callbacks]
+        # self._save_snapshot = [func.save_snapshot for func in callbacks]
+        # self._load_snapshot = [func.load_snapshot for func in callbacks]
 
     def _register_hook(self, hook):
         '''
@@ -660,10 +660,10 @@ class TorchTrainer:
 
             # 中文：如果设置了 checkpoint 标志（通常由回调函数设置），则保存模型快照
             # 只在主进程执行，避免多进程重复保存
-            if self.checkpoint and self.rank == 0:
-                ''' Save model '''
-                self.save_snapshot()
-                self.checkpoint = False
+            # if self.checkpoint and self.rank == 0:
+            #     ''' Save model '''
+            #     self.save_snapshot()
+            #     self.checkpoint = False
 
             # 中文：检查是否触发提前停止（通常由 EarlyStopping 回调设置）
             # 如果 stop_train 为 True，则终止训练循环
@@ -741,15 +741,15 @@ class TorchTrainer:
 
         return prediction
 
-    def save_snapshot(self, path=None):
-        # 中文：遍历回调执行保存逻辑；默认回调会把模型/优化器等状态写入文件
-        for func in self._save_snapshot:
-            func(self, path)
+    # def save_snapshot(self, path=None):
+    #     # 中文：遍历回调执行保存逻辑；默认回调会把模型/优化器等状态写入文件
+    #     for func in self._save_snapshot:
+    #         func(self, path)
 
-    def load_snapshot(self, path=None, device=None):
-        # 中文：与保存对应，从快照恢复；可选择加载到指定 device
-        for func in self._load_snapshot:
-            func(self, path, device)
+    # def load_snapshot(self, path=None, device=None):
+    #     # 中文：与保存对应，从快照恢复；可选择加载到指定 device
+    #     for func in self._load_snapshot:
+    #         func(self, path, device)
 
     def register(self, hook=TrainHook(), callbacks=[SaveSnapshot()]):
         '''
@@ -788,7 +788,7 @@ class TorchTrainer:
               # Evaluation
               loader_valid=None, eval_metric=None, monitor_metrics=[],
               # Snapshot
-              export_dir=None, resume=False,
+              export_dir=None,
               # Training option
               fp16=False, parallel=None, grad_accumulations=1, 
               deterministic=None, random_state=0, 
@@ -827,7 +827,7 @@ class TorchTrainer:
         # 中文：训练状态标记，控制 early stop、保存等逻辑
         self.global_epoch = 1
         self.stop_train = False
-        self.checkpoint = False
+        # self.checkpoint = False
         self.outoffold = None
         self.prediction = None
         if self.optimizer.__class__.__name__ == 'SAM':
@@ -866,12 +866,12 @@ class TorchTrainer:
         if not isinstance(self.monitor_metrics, (list, tuple)):
             self.monitor_metrics = [self.monitor_metrics]
 
-        ''' Resume training '''
+        # ''' Resume training '''
         # 中文：resume=True 时从快照中恢复 state 与 epoch 计数
-        if resume:
-            self.load_snapshot(self.snapshot_path, device='cpu')
-            self.global_epoch += 1
-            self.logger(f'Continuing from epoch {self.global_epoch}.')
+        # if resume:
+        #     self.load_snapshot(self.snapshot_path, device='cpu')
+        #     self.global_epoch += 1
+        #     self.logger(f'Continuing from epoch {self.global_epoch}.')
 
         ''' Train '''
         # 中文：记录初始状态，后续每个 epoch 会追加到 _states 便于导出 dataframe
@@ -942,8 +942,8 @@ class TorchTrainer:
         self._train(loader, loader_valid, num_epochs)
 
     fit = train  # for compatibility # 为了兼容性，将 fit 方法指向 train 方法
-    load_checkpoint = load_snapshot
-    save_checkpoint = save_snapshot
+    # load_checkpoint = load_snapshot
+    # save_checkpoint = save_snapshot
 
     def export_dataframe(self):
         # 中文：将训练过程中累积的 state 列表转换为 DataFrame，便于分析/绘图

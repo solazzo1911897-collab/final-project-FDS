@@ -77,7 +77,7 @@ class Baseline:
     
     # 训练超参数
     num_epochs = 5  # 训练轮数
-    batch_size = 128  # 批次大小  T4 16GB 64大概占满
+    batch_size = 64  # 批次大小  T4 16GB 64大概占满
     # 128 T4 RuntimeError: CUDA out of memory. Tried to allocate 144.00 MiB (GPU 0; 14.74 GiB total capacity; 13.38 GiB already allocated; 64.12 MiB free; 13.59 GiB reserved in total by PyTorch)
     # 128 A100 40g 显存占29g 
     
@@ -126,7 +126,7 @@ class Baseline:
     )
 
     # 伪标签配置
-    pseudo_labels = None  # 伪标签路径（None表示不使用伪标签）
+    # pseudo_labels = None  # 伪标签路径（None表示不使用伪标签）
     debug = False  # 调试模式（False表示正常训练）
 
 

@@ -3,7 +3,7 @@ from pathlib import Path
 from pprint import pprint
 import sys
 import gc
-import time
+# import time  # 已移除，不再使用
 import numpy as np
 import pandas as pd
 import torch
@@ -40,11 +40,10 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", nargs="+", default=[])
     parser.add_argument("--debug", action='store_true')
     parser.add_argument("--silent", action='store_true')
-    parser.add_argument("--progress_bar", action='store_true')
+    # progress_bar 固定为 True，已移除命令行参数
+    # resume 固定为 False，已移除命令行参数
+    # wait 固定为 0（不等待），已移除命令行参数
     parser.add_argument("--skip_existing", action='store_true')
-    parser.add_argument("--resume", action='store_true')
-    parser.add_argument("--wait", type=int, default=0,
-                        help="time (sec) to wait before execution")
     opt = parser.parse_args()
     pprint(opt)
 
@@ -56,7 +55,7 @@ if __name__ == "__main__":
 
     ''' Configure path '''
     cfg = eval(opt.config)  # 动态获取 configs.py 中的配置类实例
-    assert cfg.pseudo_labels is None
+    # assert cfg.pseudo_labels is None
     export_dir = Path('results') / cfg.name
     export_dir.mkdir(parents=True, exist_ok=True)  # 结果目录
 
@@ -78,9 +77,6 @@ if __name__ == "__main__":
         stdout=True,  # 显式设置，确保在 Jupyter 中输出到控制台   还是不行，不知道为什么，在jupyter里运行要最后运行完才显示输出
         file=not opt.silent
     )
-    if opt.wait > 0:
-        LOGGER(f'Waiting for {opt.wait} sec.')
-        time.sleep(opt.wait)
     
     print('pd.read_csv(cfg.train_path)')
 
@@ -212,8 +208,7 @@ if __name__ == "__main__":
             # 'max_grad_norm': cfg.max_grad_norm,         # 梯度裁剪阈值
             'random_state': cfg.seed,                   # 随机种子，确保可复现性
             'logger': LOGGER,                           # 日志记录器
-            'progress_bar': opt.progress_bar,           # 是否显示训练进度条
-            'resume': opt.resume                        # 是否从检查点恢复训练
+            'progress_bar': True,                       # 固定为 True，显示训练进度条
         }
         try:
             # 中文：实例化训练器（serial 区分折次、device 指定 GPU/CPU），开始单折训练
@@ -302,8 +297,8 @@ if __name__ == "__main__":
         #     outoffold1 = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
         #     outoffold = (outoffold0 + outoffold1) / 2
         # else:
-        prediction_fold = trainer.predict(test_loader, progress_bar=opt.progress_bar)
-        outoffold = trainer.predict(valid_loader, progress_bar=opt.progress_bar)
+        prediction_fold = trainer.predict(test_loader, progress_bar=True)
+        outoffold = trainer.predict(valid_loader, progress_bar=True)
 
         predictions[fold] = prediction_fold        # test 预测：按折存放，后续可对折/模型求平均
         outoffolds[valid_idx] = outoffold          # OOF (out-of-fold) 预测：对每折验证集的预测，写回原始索引；用于计算全体验证集的整体指标（如全数据 AUC）
