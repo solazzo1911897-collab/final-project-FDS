@@ -4,12 +4,6 @@ import subprocess
 import numpy as np
 import torch
 import time
-try:
-    import torch_xla
-    import torch_xla.core.xla_model as xm
-    XLA = True
-except ModuleNotFoundError:
-    XLA = False
 
 
 def freeze_module(module):
@@ -35,23 +29,18 @@ def fit_state_dict(state_dict, model):
 
 def get_device(arg):
     # 中文：根据传入参数决定计算设备与 device_ids：
-    # - torch.device / xla_device：直接使用
-    # - None / list / tuple：自动选择可用 GPU，否则 CPU；XLA 优先
-    # - 字符串：直接转为 torch.device（'xla' 需环境支持 XLA）
-    if isinstance(arg, torch.device) or \
-        (XLA and isinstance(arg, xm.xla_device)):
+    # - torch.device：直接使用
+    # - None / list / tuple：自动选择可用 GPU，否则 CPU
+    # - 字符串：直接转为 torch.device
+    if isinstance(arg, torch.device):
         device = arg
     elif arg is None or isinstance(arg, (list, tuple)):
-        if XLA:
-            device = xm.xla_device()
-        else:
-            device = torch.device(
-                'cuda' if torch.cuda.is_available() else 'cpu')
+        device = torch.device(
+            'cuda' if torch.cuda.is_available() else 'cpu')
     elif isinstance(arg, str):
-        if arg == 'xla' and XLA:
-            device = xm.xla_device()
-        else:
-            device = torch.device(arg)
+        device = torch.device(arg)
+    else:
+        raise ValueError(f'Invalid device: {arg}')
     
     if isinstance(arg, (list, tuple)):
         if isinstance(arg[0], int):
@@ -515,19 +504,11 @@ def _save_snapshot(trainer, path,
     if save_scheduler:
         serialized['scheduler'] = trainer.scheduler.state_dict()
 
-    if trainer.xla:
-        import torch_xla.utils.serialization as xser
-        xser.save(serialized, str(path))
-    else:
-        torch.save(serialized, str(path))
+    torch.save(serialized, str(path))
 
 
 def _load_snapshot(trainer, path, device):
-    if trainer.xla:
-        import torch_xla.utils.serialization as xser
-        checkpoint = xser.load(str(path))
-    else:
-        checkpoint = torch.load(str(path), map_location=device)
+    checkpoint = torch.load(str(path), map_location=device)
 
     if isinstance(
             trainer.model,
