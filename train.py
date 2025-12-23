@@ -209,7 +209,7 @@ if __name__ == "__main__":
             # 'parallel': cfg.parallel,                   # 并行训练配置（None 表示单GPU，'ddp' 表示多GPU）
             'deterministic': cfg.deterministic,         # 是否使用确定性算法（False 允许非确定性操作以提升性能）
             # 'clip_grad': cfg.clip_grad,                 # 梯度裁剪方式（'value' 或 'norm'）
-            'max_grad_norm': cfg.max_grad_norm,         # 梯度裁剪阈值
+            # 'max_grad_norm': cfg.max_grad_norm,         # 梯度裁剪阈值
             'random_state': cfg.seed,                   # 随机种子，确保可复现性
             'logger': LOGGER,                           # 日志记录器
             'progress_bar': opt.progress_bar,           # 是否显示训练进度条
